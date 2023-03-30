@@ -9,6 +9,7 @@
 import rospy
 from std_msgs.msg import String
 from std_msgs.msg import Int32
+from std_msgs.msg import Bool
 
 from sensor_msgs.msg import Joy
 
@@ -19,6 +20,9 @@ yaw= Int32()
 pitch= Int32()
 yaw_lock=0  #0 locked 1 unlocked
 pitch_lock=0
+screw_power= Bool()
+belt_power= Bool()
+flick= Bool()
 
 def map_range(x, in_min, in_max, out_min, out_max):
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -26,10 +30,10 @@ def map_range(x, in_min, in_max, out_min, out_max):
 def changer(value): 
     if(value==0):
         value=1
-        print('unlocked')
+        # print('unlocked')
     elif(value==1):
         value=0
-        print('locked')
+        # print('locked')
     else:
         rospy.loginfo("error in changer")
         rospy.signal_shutdown
@@ -48,7 +52,6 @@ def loco_finder(data):
         loco.w=-1
     else:
         loco.w=0
-    
 
 def yp_finder(data):
     global yaw,pitch,lock,yaw_lock,pitch_lock
@@ -58,10 +61,21 @@ def yp_finder(data):
         yaw.data=int(map_range(yaw_decimal,-1,1,-30,30))
     if(pitch_lock==1):
         pitch.data=int(map_range(pitch_decimal,-1,1,30,60))
-
-def 
-
-    
+ 
+def pick_control(data):
+    global screw_power,belt_power,flick
+    if(data.axes[6]==1):
+        screw_power.data=True       #should move up for a true and should move down on next false
+    elif(data.axes[6]==-1):
+        screw_power.data=False
+    if(-data.axes[5]==1):
+        belt_power.data=True
+    elif(-data.axes[5]==-1):
+        belt_power.data=False
+    if(data.buttons[6]==1):
+        flick.data=True
+    else:
+        flick.data=False
     
     
 
@@ -76,6 +90,7 @@ def joy_callback(data):
     if(data.buttons[7]==1):
         pitch_lock=changer(pitch_lock)
     yp_finder(data)
+    pick_control(data)
 
 
 def talker():
@@ -83,6 +98,10 @@ def talker():
     pub_loco = rospy.Publisher('locomotion', Quaternion, queue_size=10)
     pub_yaw = rospy.Publisher('target_yaw', Int32, queue_size=10)
     pub_pitch = rospy.Publisher('target_pitch', Int32, queue_size=10)
+    pub_screw = rospy.Publisher('screw_power', Bool, queue_size=10)        #these screw and belt can be combined into a single custom message
+    pub_belt = rospy.Publisher('belt_power', Bool, queue_size=10)
+    pub_flick = rospy.Publisher('flick', Bool, queue_size=10)
+    
 
     rospy.init_node('talker', anonymous=True)
     rate = rospy.Rate(10) # 10hz
@@ -91,7 +110,11 @@ def talker():
         # rospy.loginfo(hello_str)
         pub_loco.publish(loco)
         pub_yaw.publish(yaw)
-        pub_pitch.publish(pitch)    
+        pub_pitch.publish(pitch)
+        pub_screw.publish(screw_power)    
+        pub_belt.publish(belt_power)    
+        pub_flick.publish(flick)    
+
         rate.sleep()
 
 if __name__ == '__main__':
